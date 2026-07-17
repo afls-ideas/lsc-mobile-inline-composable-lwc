@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>lscMobileInline_relatedList</members>
+        <members>lscMobileInline_hcpEngagement</members>
+        <members>lscMobileInline_inquiries</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Account.lscMobileInline_hcpEngagement</members>
+        <members>Account.lscMobileInline_inquiries</members>
+        <name>QuickAction</name>
+    </types>
+    <version>66.0</version>
+</Package>

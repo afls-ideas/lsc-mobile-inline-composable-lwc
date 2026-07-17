@@ -1,0 +1,8 @@
+# Jest tests and mocks — run locally, never deploy to the org
+**/__tests__/**
+**/jest-mocks/**
+force-app/test/**
+
+# Tooling
+**/node_modules/**
+coverage/

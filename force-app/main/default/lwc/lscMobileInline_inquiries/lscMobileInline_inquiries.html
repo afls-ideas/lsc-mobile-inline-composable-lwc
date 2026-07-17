@@ -1,0 +1,26 @@
+<template>
+    <!-- Reuse #2: same component, configured to query Cases -->
+    <c-lsc-mobile-inline_related-list
+        title="Medical Inquiries"
+        icon-name="standard:question_feed"
+        parent-record-id={recordId}
+        related-list-id="Cases"
+        fields={fields}
+        sort-by={sortBy}
+        title-field="Case.Subject"
+        subtitle-field="Case.CaseNumber"
+        badge-field="Case.Status"
+        page-size="15"
+        ondataloaded={handleDataLoaded}
+        onrecordselect={handleRecordSelect}
+    >
+        <!-- Injected via <slot>: an escalation alert this parent owns -->
+        <template if:true={hasEscalations}>
+            <div class="slds-box slds-box_x-small slds-theme_warning slds-m-bottom_small">
+                <lightning-icon icon-name="utility:warning" size="x-small"
+                    class="slds-m-right_x-small"></lightning-icon>
+                {alertText}
+            </div>
+        </template>
+    </c-lsc-mobile-inline_related-list>
+</template>

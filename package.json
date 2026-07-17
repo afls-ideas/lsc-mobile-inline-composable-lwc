@@ -1,0 +1,15 @@
+{
+  "name": "lwc-composable",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Composable LWC demo for Life Sciences CRM (mobile inline)",
+  "scripts": {
+    "test": "sfdx-lwc-jest",
+    "test:unit": "sfdx-lwc-jest",
+    "test:unit:watch": "sfdx-lwc-jest --watch",
+    "test:unit:coverage": "sfdx-lwc-jest --coverage"
+  },
+  "devDependencies": {
+    "@salesforce/sfdx-lwc-jest": "^7.0.1"
+  }
+}
