@@ -12,6 +12,81 @@ the same query config — a horizontal **timeline** stacked on top of a **relate
 
 ---
 
+## The big idea (in plain English)
+
+Think of it like **LEGO**. We built two small, reusable bricks that each know how to fetch and
+show a list of records:
+
+- 🟦 a **timeline** brick (dots on a horizontal line)
+- 🟦 a **list** brick (a simple tappable list)
+
+Then we built two bigger widgets that **don't do any work themselves** — they just *hold* those
+two bricks and tell each one what to load:
+
+- **HCP Engagement** → tells the bricks to show the doctor's **Visits**
+- **Medical Inquiries** → tells the bricks to show the doctor's **Cases** (questions)
+
+That's the whole trick: **build a piece once, reuse it everywhere.** Fix or improve a brick
+once, and both widgets get better automatically.
+
+### See it in one file
+
+Here's the *entire* HCP Engagement widget. Notice it has almost no logic — it's just a
+container that places the two reusable bricks and tells them "load **Visits**":
+
+```html
+<template>
+    <!-- Brick #1: the timeline, told to plot Visits -->
+    <c-lsc-mobile-inline_timeline
+        title="Engagement Timeline"
+        related-list-id="Visits"
+        title-field="Visit.Name"
+        date-field="Visit.PlannedVisitStartTime"
+        badge-field="Visit.Status"
+        parent-record-id={recordId}>
+    </c-lsc-mobile-inline_timeline>
+
+    <!-- Brick #2: the list, told to load the SAME Visits -->
+    <c-lsc-mobile-inline_related-list
+        title="HCP Engagement"
+        related-list-id="Visits"
+        title-field="Visit.Name"
+        badge-field="Visit.Status"
+        parent-record-id={recordId}>
+    </c-lsc-mobile-inline_related-list>
+</template>
+```
+
+> The full file has a few extra attributes (sorting, page size, event handlers, a summary line).
+> See [`lscMobileInline_hcpEngagement.html`](force-app/main/default/lwc/lscMobileInline_hcpEngagement/lscMobileInline_hcpEngagement.html).
+
+The **Medical Inquiries** widget is nearly identical — the *only* real difference is it says
+`related-list-id="Cases"` instead of `"Visits"`. Same bricks, different data. That's reuse.
+
+### What it looks like on screen
+
+```
+┌───────────────────────────────────────────────┐
+│  Engagement Timeline                            │  ← timeline brick
+│   ●───────●───────●───────●   ◀ scroll ▶        │     (wide, short)
+│  Jan     Feb     Apr     Jun                    │
+├───────────────────────────────────────────────┤
+│  HCP Engagement                                 │  ← list brick
+│   • Q1 Detail Visit        Completed            │     (fills the rest)
+│   • Q2 Detail Visit        Planned              │
+│   • Lunch & Learn          Completed            │
+└───────────────────────────────────────────────┘
+```
+
+---
+
+<details>
+<summary><b>Deeper technical detail</b> (click to expand)</summary>
+
+The sections below explain the wiring, the props/events contract, data flow, and tests.
+
+</details>
+
 ## The components
 
 | Component | Role | Exposed | Responsibility |
