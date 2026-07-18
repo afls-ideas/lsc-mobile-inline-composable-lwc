@@ -5,14 +5,14 @@ import { LightningElement, api } from 'lwc';
  *
  * Mobile inline widget on an HCP (Account) record showing the HCP's medical
  * inquiries (Cases). A DIFFERENT widget from hcpEngagement, but it COMPOSES the
- * SAME self-querying lscMobileInline_relatedList — just configured for Cases,
- * with its own slotted alert banner and its own event handling.
+ * SAME two self-querying bricks — a timeline stacked on a related list — just
+ * configured for Cases, with its own slotted alert banner and event handling.
  */
 export default class LscMobileInline_inquiries extends LightningElement {
     @api recordId;
 
-    // Configuration handed to the reusable data brick.
-    fields = ['Case.CaseNumber', 'Case.Subject', 'Case.Status', 'Case.Priority'];
+    // Configuration handed to the reusable data bricks.
+    fields = ['Case.CaseNumber', 'Case.Subject', 'Case.Status', 'Case.Priority', 'Case.CreatedDate'];
     sortBy = ['-Case.CreatedDate'];
 
     inquiryCount = 0;

@@ -2,6 +2,7 @@
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>lscMobileInline_relatedList</members>
+        <members>lscMobileInline_timeline</members>
         <members>lscMobileInline_hcpEngagement</members>
         <members>lscMobileInline_inquiries</members>
         <name>LightningComponentBundle</name>

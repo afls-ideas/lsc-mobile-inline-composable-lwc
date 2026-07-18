@@ -1,5 +1,20 @@
 <template>
-    <!-- Reuse #1: same component, configured to query Visits -->
+    <!-- Reuse #1a: timeline brick on top, configured to plot Visits -->
+    <c-lsc-mobile-inline_timeline
+        title="Engagement Timeline"
+        icon-name="standard:event"
+        parent-record-id={recordId}
+        related-list-id="Visits"
+        fields={fields}
+        sort-by={sortBy}
+        title-field="Visit.Name"
+        date-field="Visit.PlannedVisitStartTime"
+        badge-field="Visit.Status"
+        page-size="15"
+        onnodeselect={handleRecordSelect}
+    ></c-lsc-mobile-inline_timeline>
+
+    <!-- Reuse #1b: same data, listed underneath via the related list brick -->
     <c-lsc-mobile-inline_related-list
         title="HCP Engagement"
         icon-name="standard:event"

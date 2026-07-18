@@ -1,5 +1,20 @@
 <template>
-    <!-- Reuse #2: same component, configured to query Cases -->
+    <!-- Reuse #2a: same timeline brick, configured to plot Cases -->
+    <c-lsc-mobile-inline_timeline
+        title="Inquiry Timeline"
+        icon-name="standard:question_feed"
+        parent-record-id={recordId}
+        related-list-id="Cases"
+        fields={fields}
+        sort-by={sortBy}
+        title-field="Case.Subject"
+        date-field="Case.CreatedDate"
+        badge-field="Case.Status"
+        page-size="15"
+        onnodeselect={handleRecordSelect}
+    ></c-lsc-mobile-inline_timeline>
+
+    <!-- Reuse #2b: same data, listed underneath via the related list brick -->
     <c-lsc-mobile-inline_related-list
         title="Medical Inquiries"
         icon-name="standard:question_feed"

@@ -1,8 +1,9 @@
 # Composable LWC — Life Sciences CRM (Mobile Inline)
 
-A demonstration of **composable Lightning Web Components**: one small, single-responsibility,
-self-querying component reused across two genuinely different parent widgets — the LWC
-equivalent of LEGO bricks.
+A demonstration of **composable Lightning Web Components**: small, single-responsibility,
+self-querying components reused across two genuinely different parent widgets — the LWC
+equivalent of LEGO bricks. Each parent container composes **two** reusable bricks that share
+the same query config — a horizontal **timeline** stacked on top of a **related list**.
 
 - **No Apex.** Data is fetched with the offline-capable `getRelatedListRecords` wire adapter
   (`lightning/uiRelatedListApi`), so the widgets work in Salesforce Mobile offline mode.
@@ -11,16 +12,20 @@ equivalent of LEGO bricks.
 
 ---
 
-## The three components
+## The components
 
 | Component | Role | Exposed | Responsibility |
 |---|---|---|---|
-| `lscMobileInline_relatedList` | **Reusable child (the brick)** | `false` | Queries a parent record's related list itself and renders a tappable list |
-| `lscMobileInline_hcpEngagement` | Parent / orchestrator | `true` | Configures the brick to load **Tasks** on an HCP |
-| `lscMobileInline_inquiries` | Parent / orchestrator | `true` | Configures the brick to load **Cases** on an HCP |
+| `lscMobileInline_timeline` | **Reusable child (brick)** | `false` | Self-queries a related list and plots records as status-colored dots on a horizontal, height-capped timeline |
+| `lscMobileInline_relatedList` | **Reusable child (brick)** | `false` | Self-queries the same related list and renders a tappable list |
+| `lscMobileInline_hcpEngagement` | Parent / container | `true` | Composes both bricks, configured to load **Visits** on an HCP |
+| `lscMobileInline_inquiries` | Parent / container | `true` | Composes both bricks, configured to load **Cases** on an HCP |
 
-The reusable brick is the *data-fetching* component — not a dumb presentational bar. Each
-parent hands it a different related list, so the **same code queries different objects**.
+The reusable bricks are the *data-fetching* components — not dumb presentational bars. Each
+parent hands them a related list via props, so the **same code queries different objects**,
+and each parent stacks **two different visualizations of the same data**: a timeline on top,
+a list underneath. On an iPad the timeline fills the width and scrolls horizontally while
+staying short vertically, so the list fits beneath it.
 
 ---
 
@@ -28,29 +33,51 @@ parent hands it a different related list, so the **same code queries different o
 
 ```mermaid
 graph TD
-    subgraph Page["HCP Account Record Page (Mobile)"]
-        P1["lscMobileInline_hcpEngagement<br/>(orchestrator)"]
-        P2["lscMobileInline_inquiries<br/>(orchestrator)"]
+    subgraph Page["HCP Account Record Page (Mobile / iPad)"]
+        P1["lscMobileInline_hcpEngagement<br/>(container → Visits)"]
+        P2["lscMobileInline_inquiries<br/>(container → Cases)"]
     end
 
-    RL["lscMobileInline_relatedList<br/><i>reusable, self-querying brick</i>"]
+    TL["lscMobileInline_timeline<br/><i>reusable brick — horizontal timeline</i>"]
+    RL["lscMobileInline_relatedList<br/><i>reusable brick — tappable list</i>"]
 
-    P1 -->|"props down:<br/>relatedListId='Tasks'"| RL
-    P2 -->|"props down:<br/>relatedListId='Cases'"| RL
+    P1 -->|"props down"| TL
+    P1 -->|"props down"| RL
+    P2 -->|"props down"| TL
+    P2 -->|"props down"| RL
 
+    TL -.->|"events up:<br/>nodeselect / dataloaded"| P1
     RL -.->|"events up:<br/>recordselect / dataloaded"| P1
-    RL -.->|"events up:<br/>recordselect / dataloaded"| P2
+    TL -.->|"events up"| P2
+    RL -.->|"events up"| P2
 
-    RL ==>|"@wire"| ADP["getRelatedListRecords<br/>lightning/uiRelatedListApi<br/>(offline-capable)"]
+    TL ==>|"@wire"| ADP["getRelatedListRecords<br/>lightning/uiRelatedListApi<br/>(offline-capable)"]
+    RL ==>|"@wire"| ADP
     ADP ==> DB[("Local Device DB /<br/>Salesforce Core")]
 
+    style TL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style RL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style ADP fill:#e8f5e9,stroke:#2e7d32
     style P1 fill:#fff3e0,stroke:#e65100
     style P2 fill:#fff3e0,stroke:#e65100
 ```
 
-One brick, two parents. Fix a bug in the query/list once — both widgets benefit.
+Two bricks, two parents. Each container stacks a timeline over a list; both bricks
+self-query. Fix a bug in either brick once — both widgets benefit.
+
+### Layout inside each container (iPad)
+
+```mermaid
+graph TB
+    subgraph Container["Parent container (full width)"]
+        direction TB
+        T["lscMobileInline_timeline<br/>◀ scrolls horizontally ▶ · height-capped"]
+        L["lscMobileInline_relatedList<br/>tappable rows, fills remaining height"]
+    end
+    T --- L
+    style T fill:#e3f2fd,stroke:#1565c0
+    style L fill:#e3f2fd,stroke:#1565c0
+```
 
 ---
 
@@ -178,13 +205,10 @@ flowchart TD
 
 ```
 force-app/main/default/lwc/
-├── lscMobileInline_relatedList/     ← reusable, self-querying brick (isExposed=false)
-│   ├── lscMobileInline_relatedList.js
-│   ├── lscMobileInline_relatedList.html
-│   ├── lscMobileInline_relatedList.css
-│   └── lscMobileInline_relatedList.js-meta.xml
-├── lscMobileInline_hcpEngagement/   ← parent: Tasks (isExposed=true, Account)
-└── lscMobileInline_inquiries/       ← parent: Cases (isExposed=true, Account)
+├── lscMobileInline_timeline/        ← reusable brick: horizontal timeline (isExposed=false)
+├── lscMobileInline_relatedList/     ← reusable brick: tappable list (isExposed=false)
+├── lscMobileInline_hcpEngagement/   ← container: Visits (isExposed=true, Account)
+└── lscMobileInline_inquiries/       ← container: Cases (isExposed=true, Account)
 ```
 
 ---
@@ -206,7 +230,7 @@ via the Lightning App Builder.
 
 ## Tests
 
-Jest tests (via `sfdx-lwc-jest`) cover the reusable brick in isolation and each parent's
+Jest tests (via `sfdx-lwc-jest`) cover each reusable brick in isolation and each parent's
 composition wiring. The `getRelatedListRecords` wire is mocked with an LDS test adapter
 (`force-app/test/jest-mocks/lightning/uiRelatedListApi.js`), so no org is needed.
 
@@ -216,25 +240,29 @@ npm test          # run all suites
 npm run test:unit:coverage   # with coverage
 ```
 
-What's covered (12 tests, 3 suites):
+What's covered (19 tests, 4 suites):
 
+- **`lscMobileInline_timeline`** — plots one node per record (title/date/status), colors each
+  dot by status severity, prefers the UI-API `displayValue` for dates, fires `dataloaded` and
+  `nodeselect`, and handles empty + error states.
 - **`lscMobileInline_relatedList`** — renders a row per record from configured fields, shows
   the count in the card title, fires `dataloaded` and `recordselect`, and handles empty +
   error states.
-- **`lscMobileInline_hcpEngagement`** — configures the brick for `Tasks` and updates its
+- **`lscMobileInline_hcpEngagement`** — configures both bricks for `Visits` and updates its
   slotted summary from the child's `dataloaded` event.
-- **`lscMobileInline_inquiries`** — configures the brick for `Cases` and shows/hides its
+- **`lscMobileInline_inquiries`** — configures both bricks for `Cases` and shows/hides its
   escalation alert based on the raw records the child emits.
 
 ---
 
 ## Why this is composable (the takeaways)
 
-- **Reusability** — one component queries `Tasks` in one widget and `Cases` in another,
-  driven entirely by props. Write once, use everywhere.
-- **Maintainability** — the query + list logic lives in one place; fix it once.
-- **Testability** — the brick has clear inputs (props) and outputs (events), so it's
+- **Reusability** — the bricks query `Visits` in one widget and `Cases` in another, driven
+  entirely by props. Two visualizations (timeline + list) reuse the same query config. Write
+  once, use everywhere.
+- **Maintainability** — each brick's query + render logic lives in one place; fix it once.
+- **Testability** — each brick has clear inputs (props) and outputs (events), so it's
   straightforward to Jest-test in isolation by mocking the wire adapter.
-- **Loose coupling** — the brick knows nothing about HCPs, Tasks, or Cases. Parents own
-  the business meaning; the brick owns fetching + rendering. *Props down, events up.*
+- **Loose coupling** — the bricks know nothing about HCPs, Visits, or Cases. Parents own the
+  business meaning; the bricks own fetching + rendering. *Props down, events up.*
 ```
