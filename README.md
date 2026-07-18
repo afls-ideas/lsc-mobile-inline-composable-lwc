@@ -63,20 +63,29 @@ container that places the two reusable bricks and tells them "load **Visits**":
 The **Medical Inquiries** widget is nearly identical — the *only* real difference is it says
 `related-list-id="Cases"` instead of `"Visits"`. Same bricks, different data. That's reuse.
 
-### What it looks like on screen
+### What it looks like on screen (real iPad screenshots)
 
-```
-┌───────────────────────────────────────────────┐
-│  Engagement Timeline                            │  ← timeline brick
-│   ●───────●───────●───────●   ◀ scroll ▶        │     (wide, short)
-│  Jan     Feb     Apr     Jun                    │
-├───────────────────────────────────────────────┤
-│  HCP Engagement                                 │  ← list brick
-│   • Q1 Detail Visit        Completed            │     (fills the rest)
-│   • Q2 Detail Visit        Planned              │
-│   • Lunch & Learn          Completed            │
-└───────────────────────────────────────────────┘
-```
+Both widgets run on the same HCP Account record page ("Aaron Morita"), each on its own tab.
+In both, the **timeline brick** sits on top (wide + short, scrolls sideways) and the **list
+brick** fills the space underneath — the exact same two bricks, just pointed at different data.
+
+**Composable 1 — HCP Engagement** (bricks configured for **Visits**):
+
+![HCP Engagement: timeline + list of Visits](docs/images/composable-1-hcp-engagement.png)
+
+**Composable 2 — Medical Inquiries** (the *same two bricks*, configured for **Cases**):
+
+![Medical Inquiries: timeline + list of Cases](docs/images/composable-2-inquiries.png)
+
+Look closely and you can see the reuse:
+
+- Both pages have a **Timeline** card (dots colored by status) stacked over a **list** card.
+- The timeline dots are color-coded by status: orange for in-progress (`Planned`, `New`,
+  `Open`), green for done (`Completed`, `Closed`, `Submitted`), grey for anything else
+  (e.g. `Draft`, `Signed`, `Responded`). You can see this in Composable 2 — only the
+  `Submitted` node is green; `Draft`/`Signed`/`Responded` are grey.
+- The **only** difference between the two widgets is which records they load: Visits vs. Cases.
+  The timeline and list components themselves are **identical and shared**.
 
 ---
 
