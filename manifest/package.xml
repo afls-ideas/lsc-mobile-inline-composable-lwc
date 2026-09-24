@@ -5,6 +5,7 @@
         <members>lscMobileInline_timeline</members>
         <members>lscMobileInline_hcpEngagement</members>
         <members>lscMobileInline_inquiries</members>
+        <members>lscMobileInlineGraphqlUtils</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>

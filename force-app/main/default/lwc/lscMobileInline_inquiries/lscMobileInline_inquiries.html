@@ -4,9 +4,8 @@
         title="Inquiry Timeline"
         icon-name="standard:question_feed"
         parent-record-id={recordId}
+        parent-object-api-name="Account"
         related-list-id="Cases"
-        fields={fields}
-        sort-by={sortBy}
         title-field="Case.Subject"
         date-field="Case.CreatedDate"
         badge-field="Case.Status"
@@ -19,9 +18,8 @@
         title="Medical Inquiries"
         icon-name="standard:question_feed"
         parent-record-id={recordId}
+        parent-object-api-name="Account"
         related-list-id="Cases"
-        fields={fields}
-        sort-by={sortBy}
         title-field="Case.Subject"
         subtitle-field="Case.CaseNumber"
         badge-field="Case.Status"

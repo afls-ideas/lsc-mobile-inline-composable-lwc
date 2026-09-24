@@ -4,9 +4,8 @@
         title="Engagement Timeline"
         icon-name="standard:event"
         parent-record-id={recordId}
+        parent-object-api-name="Account"
         related-list-id="Visits"
-        fields={fields}
-        sort-by={sortBy}
         title-field="Visit.Name"
         date-field="Visit.PlannedVisitStartTime"
         badge-field="Visit.Status"
@@ -19,9 +18,8 @@
         title="HCP Engagement"
         icon-name="standard:event"
         parent-record-id={recordId}
+        parent-object-api-name="Account"
         related-list-id="Visits"
-        fields={fields}
-        sort-by={sortBy}
         title-field="Visit.Name"
         subtitle-field="Visit.PlannedVisitStartTime"
         badge-field="Visit.Status"

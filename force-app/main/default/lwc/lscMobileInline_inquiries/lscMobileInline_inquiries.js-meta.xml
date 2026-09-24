@@ -13,6 +13,8 @@
             <objects>
                 <object>Account</object>
             </objects>
+            <property name="mobileHeight" type="Integer" label="Mobile Height (px)"
+                description="Height in pixels this widget should occupy on mobile." default="400" />
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

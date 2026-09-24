@@ -11,9 +11,8 @@ import { LightningElement, api } from 'lwc';
 export default class LscMobileInline_hcpEngagement extends LightningElement {
     @api recordId;
 
-    // Configuration handed to the reusable data brick.
-    fields = ['Visit.Name', 'Visit.Status', 'Visit.PlannedVisitStartTime'];
-    sortBy = ['-Visit.PlannedVisitStartTime'];
+    // Editable in Lightning App Builder via the js-meta.xml design property.
+    @api mobileHeight;
 
     activityCount = 0;
     selected;

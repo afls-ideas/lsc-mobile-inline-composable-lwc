@@ -5,8 +5,13 @@ self-querying components reused across two genuinely different parent widgets �
 equivalent of LEGO bricks. Each parent container composes **two** reusable bricks that share
 the same query config — a horizontal **timeline** stacked on top of a **related list**.
 
-- **No Apex.** Data is fetched with the offline-capable `getRelatedListRecords` wire adapter
-  (`lightning/uiRelatedListApi`), so the widgets work in Salesforce Mobile offline mode.
+- **Rewritten to use GraphQL.** This project was migrated off `getRelatedListRecords`
+  (`lightning/uiRelatedListApi`) — unsupported in the LSC mobile app — onto the `graphql`
+  wire adapter (`lightning/uiGraphQLApi`), the offline-capable adapter for LSC Mobile.
+  (`getRelatedListRecords` is **not** resolved offline, so it can't be used here.)
+- **GraphQL support requires a Case.** The offline-capable GraphQL wire adapter isn't on by
+  default yet — you need to file a Salesforce Support Case to have it enabled for your org
+  until it's turned on generally in the **Summer '26** release.
 - **API version 66.0** throughout.
 - All components are prefixed `lscMobileInline_`.
 
@@ -135,9 +140,10 @@ graph TD
     TL -.->|"events up"| P2
     RL -.->|"events up"| P2
 
-    TL ==>|"@wire"| ADP["getRelatedListRecords<br/>lightning/uiRelatedListApi<br/>(offline-capable)"]
+    TL ==>|"@wire"| ADP["graphql<br/>lightning/uiGraphQLApi<br/>(offline-capable)"]
     RL ==>|"@wire"| ADP
-    ADP ==> DB[("Local Device DB /<br/>Salesforce Core")]
+    ADP ==> UTIL["lscMobileInlineGraphqlUtils<br/><i>builds query, normalizes response</i>"]
+    UTIL ==> DB[("Local Device DB /<br/>Salesforce Core")]
 
     style TL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
     style RL fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
@@ -171,14 +177,15 @@ graph TB
 sequenceDiagram
     participant Parent as Parent (e.g. inquiries)
     participant Child as lscMobileInline_relatedList
-    participant Wire as getRelatedListRecords
+    participant Wire as graphql
     participant User
 
     Note over Parent,Child: 1. Props DOWN (@api) — parent configures the query
-    Parent->>Child: parentRecordId, relatedListId="Cases",<br/>fields, titleField, badgeField...
+    Parent->>Child: parentRecordId, parentObjectApiName="Account",<br/>relatedListId="Cases", fields, titleField, badgeField...
 
-    Note over Child,Wire: 2. Child queries by ITSELF
-    Child->>Wire: @wire (reactive to props)
+    Note over Child,Wire: 2. Child builds its query + queries by ITSELF
+    Child->>Child: renderedCallback rebuilds query/variables<br/>(via lscMobileInlineGraphqlUtils) when props change
+    Child->>Wire: @wire (reactive to query/variables)
     Wire-->>Child: related records (offline-capable)
 
     Note over Child,Parent: 3. Events UP — child notifies, never mutates parent
@@ -204,7 +211,7 @@ differ — the query engine and list rendering are shared.
 graph LR
     subgraph Brick["lscMobileInline_relatedList (shared)"]
         direction TB
-        W["@wire getRelatedListRecords"]
+        W["@wire graphql"]
         R["renders tappable rows"]
         S["default &lt;slot&gt;"]
     end
@@ -240,7 +247,8 @@ graph LR
 | Prop | Purpose | Example |
 |---|---|---|
 | `parentRecordId` | Record whose children to load | HCP Account Id |
-| `relatedListId` | API name of the related list | `"Tasks"`, `"Cases"` |
+| `parentObjectApiName` | API name of the parent object (needed to build the GraphQL query) | `"Account"` |
+| `relatedListId` | Child relationship name | `"Tasks"`, `"Cases"` |
 | `fields` | Qualified field names to fetch | `['Case.Subject','Case.Status']` |
 | `titleField` | Field for each row's primary text | `"Case.Subject"` |
 | `subtitleField` | Optional secondary text | `"Case.CaseNumber"` |
@@ -269,12 +277,15 @@ The default `<slot>` renders above the list, so each parent injects its own mark
 flowchart TD
     A["Component placed on HCP<br/>Account record page"] --> B["recordId flows into parent<br/>via @api"]
     B --> C["Parent passes recordId +<br/>config down to brick"]
-    C --> D{"@wire inputs<br/>changed?"}
-    D -->|yes| E["getRelatedListRecords fires"]
+    C --> D{"Structural props<br/>changed?"}
+    D -->|yes| E2["lscMobileInlineGraphqlUtils<br/>rebuilds the gql query"]
+    D -->|no, only recordId| E3["variables refreshed"]
+    E2 --> E["graphql wire fires"]
+    E3 --> E
     E --> F{"Online?"}
     F -->|no| G["Resolve from<br/>local device DB"]
     F -->|yes| H["Resolve from<br/>Salesforce Core"]
-    G --> I["Child shapes rows<br/>+ fires dataloaded"]
+    G --> I["Response normalized back to<br/>getRelatedListRecords shape;<br/>child shapes rows + fires dataloaded"]
     H --> I
     I --> J["Parent derives its own<br/>summary from raw records"]
     I --> K["Rows render; tap fires<br/>recordselect up"]
@@ -291,6 +302,7 @@ flowchart TD
 force-app/main/default/lwc/
 ├── lscMobileInline_timeline/        ← reusable brick: horizontal timeline (isExposed=false)
 ├── lscMobileInline_relatedList/     ← reusable brick: tappable list (isExposed=false)
+├── lscMobileInlineGraphqlUtils/     ← shared helper: builds gql query, normalizes response (isExposed=false)
 ├── lscMobileInline_hcpEngagement/   ← container: Visits (isExposed=true, Account)
 └── lscMobileInline_inquiries/       ← container: Cases (isExposed=true, Account)
 ```
@@ -315,8 +327,8 @@ via the Lightning App Builder.
 ## Tests
 
 Jest tests (via `sfdx-lwc-jest`) cover each reusable brick in isolation and each parent's
-composition wiring. The `getRelatedListRecords` wire is mocked with an LDS test adapter
-(`force-app/test/jest-mocks/lightning/uiRelatedListApi.js`), so no org is needed.
+composition wiring. The `graphql` wire is mocked with an LDS test adapter
+(`force-app/test/jest-mocks/lightning/uiGraphQLApi.js`), so no org is needed.
 
 ```bash
 npm install       # one-time

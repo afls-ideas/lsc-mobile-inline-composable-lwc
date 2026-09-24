@@ -10,7 +10,7 @@ function createComponent(props = {}) {
     return el;
 }
 
-// A getRelatedListRecords-shaped Case record.
+// A Case record shaped like the related-list brick's dataloaded payload.
 function caseRecord(status) {
     return { id: `500x${status}`, fields: { Status: { value: status } } };
 }

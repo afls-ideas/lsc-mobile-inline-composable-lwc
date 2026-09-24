@@ -1,31 +1,36 @@
 import { LightningElement, api, wire } from 'lwc';
-import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
+import { graphql } from 'lightning/uiGraphQLApi';
+import { getRelatedListQuery, extractRelatedListRecords } from 'c/lscMobileInlineGraphqlUtils';
 
 /**
  * lscMobileInline_timeline
  *
  * A SECOND reusable, self-querying data brick — a sibling to
  * lscMobileInline_relatedList. Given the same style of configuration (parent
- * record + related list + fields), it queries the child records itself
- * (offline-capable getRelatedListRecords, no Apex) and plots them along a
- * horizontal timeline: one status-colored dot per record on a shared axis,
- * with a compact card above each dot showing title, date, and status.
+ * record + related list + fields), it queries the child records itself via
+ * lightning/uiGraphQLApi (offline-capable, no Apex — getRelatedListRecords is
+ * NOT resolved offline) and plots them along a horizontal timeline: one
+ * status-colored dot per record on a shared axis, with a compact card above
+ * each dot showing title, date, and status.
  *
  * Designed to sit ON TOP of the related list in a parent container: it fills
  * the width and scrolls horizontally, but is height-capped so a list fits
  * beneath it on an iPad.
  *
  * Public API (props down) — mirrors the related list, plus a date field:
- *   @api parentRecordId  - record whose children to plot
- *   @api relatedListId   - API name of the related list (e.g. "Visits")
- *   @api fields          - qualified field names to fetch
- *   @api titleField      - field for each node's primary text
- *   @api dateField       - field used for the node's date label / ordering
- *   @api badgeField      - field driving the status color + badge text
- *   @api sortBy          - optional qualified field(s) to sort by
- *   @api pageSize        - max nodes to fetch (default 50)
- *   @api iconName        - SLDS icon for the card header
- *   @api title           - card header title
+ *   @api parentRecordId     - record whose children to plot
+ *   @api parentObjectApiName - API name of the parent object (e.g. "Account")
+ *   @api relatedListId      - child relationship name (e.g. "Visits") — must
+ *                             have a matching static query registered in
+ *                             lscMobileInlineGraphqlUtils.js; fields and sort
+ *                             order live there, not as props, since GraphQL
+ *                             can't parameterize field selections
+ *   @api titleField         - field for each node's primary text
+ *   @api dateField          - field used for the node's date label / ordering
+ *   @api badgeField         - field driving the status color + badge text
+ *   @api pageSize           - max nodes to fetch (default 50)
+ *   @api iconName           - SLDS icon for the card header
+ *   @api title              - card header title
  *
  * Events (up):
  *   nodeselect - fired when a node is tapped. detail = { recordId, record }
@@ -33,6 +38,7 @@ import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
  */
 export default class LscMobileInline_timeline extends LightningElement {
     @api parentRecordId;
+    @api parentObjectApiName;
     @api relatedListId;
     @api titleField;
     @api dateField;
@@ -40,25 +46,7 @@ export default class LscMobileInline_timeline extends LightningElement {
     @api iconName = 'standard:events';
     @api title = 'Timeline';
 
-    _fields = [];
-    _sortBy;
     _pageSize = 50;
-
-    @api
-    get fields() {
-        return this._fields;
-    }
-    set fields(val) {
-        this._fields = Array.isArray(val) ? val : [];
-    }
-
-    @api
-    get sortBy() {
-        return this._sortBy;
-    }
-    set sortBy(val) {
-        this._sortBy = Array.isArray(val) ? val : val ? [val] : undefined;
-    }
 
     @api
     get pageSize() {
@@ -69,36 +57,63 @@ export default class LscMobileInline_timeline extends LightningElement {
         this._pageSize = num > 0 ? num : 50;
     }
 
+    // The gql document + variables fed to @wire. query is a stable lookup
+    // (see refreshQuery()); variables are rebuilt only when recordId/pageSize
+    // actually change, so we don't re-fire the wire on every render.
+    query;
+    variables;
+    _queryKey;
+    _variablesKey;
+
     nodes = [];
     error;
     loaded = false;
 
+    renderedCallback() {
+        this.refreshQuery();
+    }
+
+    refreshQuery() {
+        if (!this.parentObjectApiName || !this.relatedListId || !this.parentRecordId) {
+            return;
+        }
+
+        const queryKey = `${this.parentObjectApiName}.${this.relatedListId}`;
+        if (queryKey !== this._queryKey) {
+            this._queryKey = queryKey;
+            this.query = getRelatedListQuery(this.parentObjectApiName, this.relatedListId);
+        }
+
+        const variablesKey = `${this.parentRecordId}|${this._pageSize}`;
+        if (variablesKey !== this._variablesKey) {
+            this._variablesKey = variablesKey;
+            this.variables = { recordId: this.parentRecordId, pageSize: this._pageSize };
+        }
+    }
+
     // Same reusable query as the related list — driven entirely by props.
-    @wire(getRelatedListRecords, {
-        parentRecordId: '$parentRecordId',
-        relatedListId: '$relatedListId',
-        fields: '$fields',
-        sortBy: '$sortBy',
-        pageSize: '$pageSize'
-    })
-    wiredRecords({ data, error }) {
+    // graphql (unlike getRelatedListRecords) can return partial data
+    // alongside errors, so the callback must use "errors" (plural).
+    @wire(graphql, { query: '$query', variables: '$variables' })
+    wiredGraphql({ data, errors }) {
         if (data) {
-            this.nodes = this.buildNodes(data.records);
+            const { records } = extractRelatedListRecords(data, this.parentObjectApiName, this.relatedListId);
+            this.nodes = this.buildNodes(records);
             this.error = undefined;
             this.loaded = true;
             this.dispatchEvent(
                 new CustomEvent('dataloaded', {
-                    detail: { records: data.records, count: data.records.length }
+                    detail: { records, count: records.length }
                 })
             );
-        } else if (error) {
-            this.error = this.reduceError(error);
+        } else if (errors) {
+            this.error = this.reduceErrors(errors);
             this.nodes = [];
             this.loaded = true;
         }
     }
 
-    // Shape each UI-API record into a timeline node view model.
+    // Shape each normalized record into a timeline node view model.
     buildNodes(records) {
         return records.map((rec) => {
             const status = this.readField(rec, this.badgeField);
@@ -128,7 +143,7 @@ export default class LscMobileInline_timeline extends LightningElement {
         return 'neutral';
     }
 
-    // getRelatedListRecords returns values at record.fields.<ApiName>.value.
+    // Normalized records carry values at record.fields.<ApiName>.value.
     readField(rec, qualifiedField) {
         if (!qualifiedField) {
             return '';
@@ -186,7 +201,7 @@ export default class LscMobileInline_timeline extends LightningElement {
         );
     }
 
-    reduceError(error) {
-        return error?.body?.message || error?.message || 'Unable to load timeline.';
+    reduceErrors(errors) {
+        return errors?.[0]?.message || 'Unable to load timeline.';
     }
 }

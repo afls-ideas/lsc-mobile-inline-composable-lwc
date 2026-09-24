@@ -1,29 +1,35 @@
 import { LightningElement, api, wire } from 'lwc';
-import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
+import { graphql } from 'lightning/uiGraphQLApi';
+import { getRelatedListQuery, extractRelatedListRecords } from 'c/lscMobileInlineGraphqlUtils';
 
 /**
  * lscMobileInline_relatedList
  *
  * A SELF-CONTAINED, reusable data brick. Given a parent record and a related
- * list, it queries the child records itself (offline-capable
- * getRelatedListRecords — no Apex) and renders them as a compact, tappable
- * mobile list. It knows nothing about HCPs, Tasks, or Cases — the PARENT
- * configures WHAT to query and HOW to label each row entirely through props.
+ * list, it queries the child records itself via lightning/uiGraphQLApi (the
+ * offline-capable adapter — getRelatedListRecords is NOT resolved offline)
+ * and renders them as a compact, tappable mobile list. It knows nothing
+ * about HCPs, Tasks, or Cases — the PARENT configures WHAT to query and HOW
+ * to label each row entirely through props.
  *
- * This is the composable unit: the same component queries different objects in
- * different parents. Props down, events up, plus a <slot> for injected markup.
+ * This is the composable unit: the same component queries different objects
+ * in different parents. Props down, events up, plus a <slot> for injected
+ * markup.
  *
  * Public API (props down):
- *   @api parentRecordId  - record whose children to load (e.g. the HCP Account)
- *   @api relatedListId   - API name of the related list (e.g. "Tasks", "Cases")
- *   @api fields          - qualified field names to fetch (e.g. ["Task.Subject"])
- *   @api titleField      - field whose value is the row's primary text
- *   @api subtitleField   - optional field shown as secondary text
- *   @api badgeField      - optional field shown as a right-aligned badge
- *   @api sortBy          - optional qualified field(s) to sort by
- *   @api pageSize        - max rows to fetch (default 50)
- *   @api iconName        - SLDS icon for the card header
- *   @api title           - card header title
+ *   @api parentRecordId     - record whose children to load (e.g. the HCP Account)
+ *   @api parentObjectApiName - API name of the parent object (e.g. "Account")
+ *   @api relatedListId      - child relationship name (e.g. "Visits", "Cases") —
+ *                             must have a matching static query registered in
+ *                             lscMobileInlineGraphqlUtils.js; fields and sort
+ *                             order live there, not as props, since GraphQL
+ *                             can't parameterize field selections
+ *   @api titleField         - field whose value is the row's primary text
+ *   @api subtitleField      - optional field shown as secondary text
+ *   @api badgeField         - optional field shown as a right-aligned badge
+ *   @api pageSize           - max rows to fetch (default 50)
+ *   @api iconName           - SLDS icon for the card header
+ *   @api title              - card header title
  *
  * Events (up):
  *   recordselect - fired on row tap. detail = { recordId, record }
@@ -35,6 +41,7 @@ import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
  */
 export default class LscMobileInline_relatedList extends LightningElement {
     @api parentRecordId;
+    @api parentObjectApiName;
     @api relatedListId;
     @api titleField;
     @api subtitleField;
@@ -42,25 +49,7 @@ export default class LscMobileInline_relatedList extends LightningElement {
     @api iconName = 'standard:record';
     @api title = 'Related Records';
 
-    _fields = [];
-    _sortBy;
     _pageSize = 50;
-
-    @api
-    get fields() {
-        return this._fields;
-    }
-    set fields(val) {
-        this._fields = Array.isArray(val) ? val : [];
-    }
-
-    @api
-    get sortBy() {
-        return this._sortBy;
-    }
-    set sortBy(val) {
-        this._sortBy = Array.isArray(val) ? val : val ? [val] : undefined;
-    }
 
     @api
     get pageSize() {
@@ -71,37 +60,65 @@ export default class LscMobileInline_relatedList extends LightningElement {
         this._pageSize = num > 0 ? num : 50;
     }
 
+    // The gql document + variables fed to @wire. query is a stable lookup
+    // (see refreshQuery()); variables are rebuilt only when recordId/pageSize
+    // actually change, so we don't re-fire the wire on every render.
+    query;
+    variables;
+    _queryKey;
+    _variablesKey;
+
     rows = [];
     error;
     loaded = false;
 
-    // The reusable query. Every wire input is driven by a public prop, so each
-    // parent gets a completely different result from the same component.
-    @wire(getRelatedListRecords, {
-        parentRecordId: '$parentRecordId',
-        relatedListId: '$relatedListId',
-        fields: '$fields',
-        sortBy: '$sortBy',
-        pageSize: '$pageSize'
-    })
-    wiredRecords({ data, error }) {
+    renderedCallback() {
+        this.refreshQuery();
+    }
+
+    refreshQuery() {
+        if (!this.parentObjectApiName || !this.relatedListId || !this.parentRecordId) {
+            return;
+        }
+
+        const queryKey = `${this.parentObjectApiName}.${this.relatedListId}`;
+        if (queryKey !== this._queryKey) {
+            this._queryKey = queryKey;
+            this.query = getRelatedListQuery(this.parentObjectApiName, this.relatedListId);
+        }
+
+        const variablesKey = `${this.parentRecordId}|${this._pageSize}`;
+        if (variablesKey !== this._variablesKey) {
+            this._variablesKey = variablesKey;
+            this.variables = { recordId: this.parentRecordId, pageSize: this._pageSize };
+        }
+    }
+
+    // The reusable query. query/variables are driven entirely by public
+    // props (via refreshQuery), so each parent gets a completely different
+    // result from the same component. graphql (unlike getRelatedListRecords)
+    // can return partial data alongside errors, so the callback must use
+    // "errors" (plural) rather than "error".
+    @wire(graphql, { query: '$query', variables: '$variables' })
+    wiredGraphql({ data, errors }) {
         if (data) {
-            this.rows = this.shapeRows(data.records);
+            const { records } = extractRelatedListRecords(data, this.parentObjectApiName, this.relatedListId);
+            this.rows = this.shapeRows(records);
             this.error = undefined;
             this.loaded = true;
             this.dispatchEvent(
                 new CustomEvent('dataloaded', {
-                    detail: { records: data.records, count: data.records.length }
+                    detail: { records, count: records.length }
                 })
             );
-        } else if (error) {
-            this.error = this.reduceError(error);
+        } else if (errors) {
+            this.error = this.reduceErrors(errors);
             this.rows = [];
             this.loaded = true;
         }
     }
 
-    // Flatten each UI-API record into a simple view model the template renders.
+    // Flatten each normalized record into a simple view model the template renders.
     shapeRows(records) {
         return records.map((rec) => ({
             id: rec.id,
@@ -112,7 +129,7 @@ export default class LscMobileInline_relatedList extends LightningElement {
         }));
     }
 
-    // getRelatedListRecords returns values at record.fields.<ApiName>.value.
+    // Normalized records carry values at record.fields.<ApiName>.value.
     // titleField may be qualified ("Task.Subject") — strip the object prefix.
     readField(rec, qualifiedField) {
         if (!qualifiedField) {
@@ -147,11 +164,7 @@ export default class LscMobileInline_relatedList extends LightningElement {
         );
     }
 
-    reduceError(error) {
-        return (
-            error?.body?.message ||
-            error?.message ||
-            'Unable to load related records.'
-        );
+    reduceErrors(errors) {
+        return errors?.[0]?.message || 'Unable to load related records.';
     }
 }

@@ -11,9 +11,8 @@ import { LightningElement, api } from 'lwc';
 export default class LscMobileInline_inquiries extends LightningElement {
     @api recordId;
 
-    // Configuration handed to the reusable data bricks.
-    fields = ['Case.CaseNumber', 'Case.Subject', 'Case.Status', 'Case.Priority', 'Case.CreatedDate'];
-    sortBy = ['-Case.CreatedDate'];
+    // Editable in Lightning App Builder via the js-meta.xml design property.
+    @api mobileHeight;
 
     inquiryCount = 0;
     escalatedCount = 0;

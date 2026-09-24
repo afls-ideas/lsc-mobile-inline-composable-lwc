@@ -1,21 +1,52 @@
 import { createElement } from 'lwc';
 import LscMobileInlineRelatedList from 'c/lscMobileInline_relatedList';
-import { getRelatedListRecords } from 'lightning/uiRelatedListApi';
+import { graphql } from 'lightning/uiGraphQLApi';
 
-// Build a getRelatedListRecords-shaped record: values live at fields.<Api>.value
-function record(id, fields) {
-    const shaped = {};
+// Build a GraphQL-shaped child node: values live at <Api>.value/.displayValue.
+function gqlRecord(id, fields) {
+    const node = { Id: id };
     Object.keys(fields).forEach((key) => {
-        shaped[key] = { value: fields[key], displayValue: null };
+        node[key] = { value: fields[key], displayValue: null };
     });
-    return { id, fields: shaped };
+    return node;
+}
+
+// Build a uiapi GraphQL response nesting child nodes under
+// query.<parentObjectApiName>.edges[0].node.<relatedListId>.edges[].node.
+function gqlResponse(parentObjectApiName, relatedListId, nodes) {
+    return {
+        uiapi: {
+            query: {
+                [parentObjectApiName]: {
+                    edges: [
+                        {
+                            node: {
+                                Id: 'parent-id',
+                                [relatedListId]: {
+                                    edges: nodes.map((node) => ({ node }))
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    };
+}
+
+// The real graphql wire adapter emits { data, errors } (errors plural).
+function emitData(data) {
+    graphql.emit({ data, errors: undefined });
+}
+function emitErrors(message) {
+    graphql.emit({ data: undefined, errors: [{ message }] });
 }
 
 function createComponent(props = {}) {
     const el = createElement('c-lsc-mobile-inline_related-list', {
         is: LscMobileInlineRelatedList
     });
-    Object.assign(el, props);
+    Object.assign(el, { parentRecordId: '001x1', parentObjectApiName: 'Account', relatedListId: 'Cases' }, props);
     document.body.appendChild(el);
     return el;
 }
@@ -35,17 +66,19 @@ describe('c-lsc-mobile-inline_related-list', () => {
 
     it('renders a row per record using the configured fields', async () => {
         const el = createComponent({
+            relatedListId: 'Cases',
             titleField: 'Case.Subject',
             subtitleField: 'Case.CaseNumber',
             badgeField: 'Case.Status'
         });
+        await flush();
 
-        getRelatedListRecords.emit({
-            records: [
-                record('500x1', { Subject: 'Dosing question', CaseNumber: '00001', Status: 'New' }),
-                record('500x2', { Subject: 'Adverse event', CaseNumber: '00002', Status: 'Escalated' })
-            ]
-        });
+        emitData(
+            gqlResponse('Account', 'Cases', [
+                gqlRecord('500x1', { Subject: 'Dosing question', CaseNumber: '00001', Status: 'New' }),
+                gqlRecord('500x2', { Subject: 'Adverse event', CaseNumber: '00002', Status: 'Escalated' })
+            ])
+        );
         await flush();
 
         const rows = el.shadowRoot.querySelectorAll('li.row');
@@ -56,11 +89,10 @@ describe('c-lsc-mobile-inline_related-list', () => {
     });
 
     it('shows the count in the card title once loaded', async () => {
-        const el = createComponent({ title: 'Medical Inquiries', titleField: 'Case.Subject' });
+        const el = createComponent({ relatedListId: 'Cases', title: 'Medical Inquiries', titleField: 'Case.Subject' });
+        await flush();
 
-        getRelatedListRecords.emit({
-            records: [record('500x1', { Subject: 'Q1' })]
-        });
+        emitData(gqlResponse('Account', 'Cases', [gqlRecord('500x1', { Subject: 'Q1' })]));
         await flush();
 
         const card = el.shadowRoot.querySelector('lightning-card');
@@ -68,16 +100,17 @@ describe('c-lsc-mobile-inline_related-list', () => {
     });
 
     it('dispatches dataloaded with the raw records and count', async () => {
-        const el = createComponent({ titleField: 'Task.Subject' });
+        const el = createComponent({ relatedListId: 'Visits', titleField: 'Visit.Name' });
         const handler = jest.fn();
         el.addEventListener('dataloaded', handler);
+        await flush();
 
-        getRelatedListRecords.emit({
-            records: [
-                record('00Tx1', { Subject: 'Call' }),
-                record('00Tx2', { Subject: 'Email' })
-            ]
-        });
+        emitData(
+            gqlResponse('Account', 'Visits', [
+                gqlRecord('0aVx1', { Name: 'Call' }),
+                gqlRecord('0aVx2', { Name: 'Email' })
+            ])
+        );
         await flush();
 
         expect(handler).toHaveBeenCalledTimes(1);
@@ -87,13 +120,12 @@ describe('c-lsc-mobile-inline_related-list', () => {
     });
 
     it('dispatches recordselect with the tapped record id', async () => {
-        const el = createComponent({ titleField: 'Case.Subject' });
+        const el = createComponent({ relatedListId: 'Cases', titleField: 'Case.Subject' });
         const handler = jest.fn();
         el.addEventListener('recordselect', handler);
+        await flush();
 
-        getRelatedListRecords.emit({
-            records: [record('500xABC', { Subject: 'Interaction query' })]
-        });
+        emitData(gqlResponse('Account', 'Cases', [gqlRecord('500xABC', { Subject: 'Interaction query' })]));
         await flush();
 
         el.shadowRoot.querySelector('li.row').click();
@@ -103,9 +135,10 @@ describe('c-lsc-mobile-inline_related-list', () => {
     });
 
     it('renders an empty state when there are no records', async () => {
-        const el = createComponent({ titleField: 'Case.Subject' });
+        const el = createComponent({ relatedListId: 'Cases', titleField: 'Case.Subject' });
+        await flush();
 
-        getRelatedListRecords.emit({ records: [] });
+        emitData(gqlResponse('Account', 'Cases', []));
         await flush();
 
         expect(el.shadowRoot.querySelectorAll('li.row')).toHaveLength(0);
@@ -113,9 +146,10 @@ describe('c-lsc-mobile-inline_related-list', () => {
     });
 
     it('renders an error message when the wire errors', async () => {
-        const el = createComponent({ titleField: 'Case.Subject' });
+        const el = createComponent({ relatedListId: 'Cases', titleField: 'Case.Subject' });
+        await flush();
 
-        getRelatedListRecords.emitError({ body: { message: 'Related list not found' } });
+        emitErrors('Related list not found');
         await flush();
 
         expect(el.shadowRoot.querySelector('.slds-text-color_error').textContent).toContain(
