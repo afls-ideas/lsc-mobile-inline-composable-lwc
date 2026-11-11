@@ -9,10 +9,7 @@ the same query config — a horizontal **timeline** stacked on top of a **relate
   (`lightning/uiRelatedListApi`) — unsupported in the LSC mobile app — onto the `graphql`
   wire adapter (`lightning/uiGraphQLApi`), the offline-capable adapter for LSC Mobile.
   (`getRelatedListRecords` is **not** resolved offline, so it can't be used here.)
-- **GraphQL support requires a Case.** The offline-capable GraphQL wire adapter isn't on by
-  default yet — you need to file a Salesforce Support Case to have it enabled for your org
-  until it's turned on generally in the **Summer '26** release.
-- **API version 66.0** throughout.
+- **API version 68.0** throughout.
 - All components are prefixed `lscMobileInline_`.
 
 ---
